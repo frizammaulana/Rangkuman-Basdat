@@ -1,4 +1,4 @@
-# CHEATSHEET BASIS DATA - TES ASISTEN PRAKTIKUM
+# RANGKUMAN BASIS DATA
 
 ## 📋 DAFTAR ISI
 1. [ERD (Entity Relationship Diagram)](#1-erd-entity-relationship-diagram)
