@@ -1,4 +1,4 @@
-# RANGKUMAN BASIS DATA
+# CHEATSHEET BASIS DATA - TES ASISTEN PRAKTIKUM
 
 ## 📋 DAFTAR ISI
 1. [ERD (Entity Relationship Diagram)](#1-erd-entity-relationship-diagram)
@@ -39,18 +39,180 @@
 - **Total Participation** (garis ganda): Setiap instance harus berpartisipasi
 - **Partial Participation** (garis tunggal): Boleh tidak berpartisipasi
 
-### Contoh ERD Sederhana
+### Kardinalitas Relasi (Relationship Cardinality)
 
+#### **1. ONE-TO-ONE (1:1)**
+**Definisi:** Satu entitas di tabel A berhubungan dengan **tepat satu** entitas di tabel B, dan sebaliknya.
+
+**Contoh Kasus:** 
+- 1 Karyawan memiliki 1 Laptop Kantor
+- 1 Negara memiliki 1 Ibu Kota
+- 1 Mahasiswa memiliki 1 Kartu Mahasiswa
+
+**Diagram ERD:**
+```
+[KARYAWAN] -------- 1:1 -------- [LAPTOP]
+    |                                |
+  PK: ID_Karyawan                PK: ID_Laptop
+    Nama                          FK: ID_Karyawan (UNIQUE)
+    Jabatan                         Merk
+                                    Serial_Number
+```
+
+**Implementasi SQL:**
+```sql
+CREATE TABLE karyawan (
+    id_karyawan CHAR(6) PRIMARY KEY,
+    nama VARCHAR2(50) NOT NULL,
+    jabatan VARCHAR2(30)
+);
+
+CREATE TABLE laptop (
+    id_laptop CHAR(6) PRIMARY KEY,
+    id_karyawan CHAR(6) UNIQUE NOT NULL,  -- UNIQUE untuk 1:1
+    merk VARCHAR2(30),
+    serial_number VARCHAR2(50),
+    CONSTRAINT laptop_fk FOREIGN KEY (id_karyawan) 
+        REFERENCES karyawan(id_karyawan) 
+        ON DELETE CASCADE
+);
+```
+
+**Ciri Khas:** Foreign Key di salah satu tabel + constraint **UNIQUE**
+
+---
+
+#### **2. ONE-TO-MANY (1:N)**
+**Definisi:** Satu entitas di tabel A berhubungan dengan **banyak** entitas di tabel B, tapi satu entitas di B hanya berhubungan dengan satu entitas di A.
+
+**Contoh Kasus:**
+- 1 Dosen membimbing N Mahasiswa
+- 1 Jurusan memiliki N Mahasiswa
+- 1 Kategori memiliki N Produk
+- 1 Departemen memiliki N Karyawan
+
+**Diagram ERD:**
+```
+[JURUSAN] -------- 1:N -------- [MAHASISWA]
+    |                                |
+  PK: Kode_Jurusan              PK: NIM
+    Nama_Jurusan                  Nama
+    Akreditasi                    FK: Kode_Jurusan
+                                    Alamat
+                                    IPK
+```
+
+**Implementasi SQL:**
+```sql
+CREATE TABLE jurusan (
+    kode_jurusan CHAR(3) PRIMARY KEY,
+    nama_jurusan VARCHAR2(50) NOT NULL,
+    akreditasi CHAR(1)
+);
+
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50) NOT NULL,
+    kode_jurusan CHAR(3) NOT NULL,  -- FK tanpa UNIQUE
+    alamat VARCHAR2(100),
+    ipk NUMBER(3,2),
+    CONSTRAINT mhs_fk_jurusan FOREIGN KEY (kode_jurusan) 
+        REFERENCES jurusan(kode_jurusan) 
+        ON DELETE CASCADE
+);
+```
+
+**Ciri Khas:** Foreign Key di tabel **"many"** (N), **tanpa** constraint UNIQUE
+
+---
+
+#### **3. MANY-TO-MANY (N:M)**
+**Definisi:** Satu entitas di tabel A berhubungan dengan **banyak** entitas di tabel B, dan sebaliknya.
+
+**Contoh Kasus:**
+- N Mahasiswa mengambil M Mata Kuliah
+- N Aktor bermain di M Film
+- N Dokter menangani M Pasien
+- N Penulis menulis M Buku
+
+**Diagram ERD:**
 ```
 [MAHASISWA] -----< mendaftar >----- [MATA_KULIAH]
     |                                      |
   PK: NIM                              PK: Kode_MK
     Nama                                  Nama_MK
     Alamat                                SKS
-    Email                                 Semester
+                                          Semester
+
+         [PENDAFTARAN] (Tabel Relasi/Junction Table)
+              |
+            PK: ID_Pendaftaran
+            FK: NIM
+            FK: Kode_MK
+              Tanggal_Daftar
+              Nilai
 ```
 
-**Kardinalitas:** 1 Mahasiswa bisa mendaftar N Mata Kuliah (1:N)
+**Implementasi SQL:**
+```sql
+-- Tabel Entitas 1
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50) NOT NULL,
+    alamat VARCHAR2(100)
+);
+
+-- Tabel Entitas 2
+CREATE TABLE mata_kuliah (
+    kode_mk CHAR(6) PRIMARY KEY,
+    nama_mk VARCHAR2(50) NOT NULL,
+    sks NUMBER(1),
+    semester NUMBER(1)
+);
+
+-- Tabel Relasi/Junction/Bridge Table
+CREATE TABLE pendaftaran (
+    id_pendaftaran CHAR(8) PRIMARY KEY,
+    nim CHAR(10) NOT NULL,
+    kode_mk CHAR(6) NOT NULL,
+    tanggal_daftar DATE DEFAULT SYSDATE,
+    nilai NUMBER(5,2),
+    CONSTRAINT pend_fk_mhs FOREIGN KEY (nim) 
+        REFERENCES mahasiswa(nim) ON DELETE CASCADE,
+    CONSTRAINT pend_fk_mk FOREIGN KEY (kode_mk) 
+        REFERENCES mata_kuliah(kode_mk) ON DELETE CASCADE,
+    CONSTRAINT pend_unique UNIQUE (nim, kode_mk)  -- Hindari duplikasi
+);
+```
+
+**Ciri Khas:** Butuh **tabel ketiga** (junction/bridge table) yang berisi 2 Foreign Key
+
+---
+
+### Ringkasan Kardinalitas
+
+| Kardinalitas | FK Lokasi | Constraint UNIQUE | Tabel Tambahan |
+|--------------|-----------|-------------------|----------------|
+| **1:1** | Salah satu tabel | ✅ YA | ❌ TIDAK |
+| **1:N** | Tabel "Many" | ❌ TIDAK | ❌ TIDAK |
+| **N:M** | Tabel junction | ❌ TIDAK | ✅ YA (Junction) |
+
+---
+
+### Contoh ERD Lengkap dengan Berbagai Kardinalitas
+
+```
+         [DOSEN] 1:1 [RUANG_KERJA]
+            |
+            | 1:N (membimbing)
+            |
+    [MAHASISWA] N:M (mengambil) [MATA_KULIAH]
+            |                         |
+            | 1:N                     | 1:N
+            |                         |
+      [JURUSAN]                   [DOSEN]
+                                (mengajar)
+```
 
 ---
 
@@ -90,6 +252,289 @@ CREATE TABLE mahasiswa (
 | `TIMESTAMP` | Tanggal & waktu detail | - |
 | `CLOB` | Text besar (4GB) | - |
 | `BLOB` | Binary besar (4GB) | - |
+
+---
+
+### CONSTRAINTS (Batasan)
+
+#### **PRIMARY KEY**
+```sql
+-- Method 1: Inline
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50)
+);
+
+-- Method 2: Table-level (RECOMMENDED)
+CREATE TABLE mahasiswa (
+    nim CHAR(10),
+    nama VARCHAR2(50),
+    CONSTRAINT mhs_pk PRIMARY KEY (nim)
+);
+
+-- Method 3: Composite Primary Key
+CREATE TABLE nilai (
+    nim CHAR(10),
+    kode_mk CHAR(6),
+    nilai NUMBER(5,2),
+    CONSTRAINT nilai_pk PRIMARY KEY (nim, kode_mk)
+);
+```
+
+**Aturan Primary Key:**
+- ✅ Harus UNIK
+- ✅ Tidak boleh NULL
+- ✅ Hanya 1 per tabel
+- ✅ Bisa composite (gabungan kolom)
+
+---
+
+#### **FOREIGN KEY** ⭐⭐⭐
+
+**Definisi:** Kolom yang mereferensikan PRIMARY KEY/UNIQUE KEY di tabel lain untuk menjaga referential integrity.
+
+**Sintaks Dasar:**
+```sql
+CONSTRAINT nama_fk FOREIGN KEY (kolom_lokal)
+    REFERENCES tabel_induk(kolom_pk)
+    [ON DELETE action]
+    [ON UPDATE action]  -- Oracle tidak support, auto cascade
+```
+
+**ON DELETE Actions:**
+
+| Action | Deskripsi | Contoh |
+|--------|-----------|--------|
+| `CASCADE` | Hapus child jika parent dihapus | Hapus mahasiswa → hapus nilai |
+| `SET NULL` | Set NULL jika parent dihapus | Hapus dosen → set NULL di mahasiswa |
+| `NO ACTION` | Tolak penghapusan parent (default) | Tidak bisa hapus jurusan jika ada mahasiswa |
+| `SET DEFAULT` | Set ke default value | - |
+
+**Contoh Lengkap:**
+
+**1. ON DELETE CASCADE**
+```sql
+-- Parent Table
+CREATE TABLE jurusan (
+    kode_jurusan CHAR(3) PRIMARY KEY,
+    nama_jurusan VARCHAR2(50)
+);
+
+-- Child Table
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50),
+    kode_jurusan CHAR(3),
+    CONSTRAINT mhs_fk_jurusan FOREIGN KEY (kode_jurusan)
+        REFERENCES jurusan(kode_jurusan)
+        ON DELETE CASCADE  -- Hapus mahasiswa jika jurusan dihapus
+);
+
+-- Jika: DELETE FROM jurusan WHERE kode_jurusan = 'IF';
+-- Maka: Semua mahasiswa dengan kode_jurusan 'IF' juga terhapus
+```
+
+**2. ON DELETE SET NULL**
+```sql
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50),
+    id_dosen_wali CHAR(6),
+    CONSTRAINT mhs_fk_dosen FOREIGN KEY (id_dosen_wali)
+        REFERENCES dosen(id_dosen)
+        ON DELETE SET NULL  -- Set NULL jika dosen dihapus
+);
+
+-- Jika: DELETE FROM dosen WHERE id_dosen = 'D001';
+-- Maka: id_dosen_wali mahasiswa jadi NULL (mahasiswa tidak terhapus)
+```
+
+**3. ON DELETE NO ACTION / RESTRICT (Default)**
+```sql
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50),
+    kode_jurusan CHAR(3),
+    CONSTRAINT mhs_fk_jurusan FOREIGN KEY (kode_jurusan)
+        REFERENCES jurusan(kode_jurusan)
+    -- Tidak ada ON DELETE = NO ACTION (default)
+);
+
+-- Jika: DELETE FROM jurusan WHERE kode_jurusan = 'IF';
+-- Maka: ERROR! Tidak bisa hapus karena ada mahasiswa yang masih referensi
+```
+
+**4. Multiple Foreign Keys**
+```sql
+CREATE TABLE pendaftaran (
+    id_pendaftaran CHAR(8) PRIMARY KEY,
+    nim CHAR(10) NOT NULL,
+    kode_mk CHAR(6) NOT NULL,
+    id_dosen CHAR(6),
+    semester NUMBER(1),
+    tahun_ajaran VARCHAR2(9),
+    nilai NUMBER(5,2),
+    
+    -- FK ke Mahasiswa
+    CONSTRAINT pend_fk_mhs FOREIGN KEY (nim)
+        REFERENCES mahasiswa(nim) ON DELETE CASCADE,
+    
+    -- FK ke Mata Kuliah
+    CONSTRAINT pend_fk_mk FOREIGN KEY (kode_mk)
+        REFERENCES mata_kuliah(kode_mk) ON DELETE CASCADE,
+    
+    -- FK ke Dosen
+    CONSTRAINT pend_fk_dosen FOREIGN KEY (id_dosen)
+        REFERENCES dosen(id_dosen) ON DELETE SET NULL
+);
+```
+
+**5. Self-Referencing FK (Recursive)**
+```sql
+CREATE TABLE pegawai (
+    id_pegawai CHAR(6) PRIMARY KEY,
+    nama VARCHAR2(50),
+    id_atasan CHAR(6),  -- Referensi ke pegawai lain
+    CONSTRAINT peg_fk_atasan FOREIGN KEY (id_atasan)
+        REFERENCES pegawai(id_pegawai)
+        ON DELETE SET NULL
+);
+```
+
+**Cara Menambah FK ke Tabel Existing:**
+```sql
+ALTER TABLE mahasiswa
+ADD CONSTRAINT mhs_fk_jurusan FOREIGN KEY (kode_jurusan)
+    REFERENCES jurusan(kode_jurusan) ON DELETE CASCADE;
+```
+
+**Cara Hapus FK:**
+```sql
+ALTER TABLE mahasiswa DROP CONSTRAINT mhs_fk_jurusan;
+```
+
+**Enable/Disable FK:**
+```sql
+-- Disable (untuk bulk insert cepat)
+ALTER TABLE mahasiswa DISABLE CONSTRAINT mhs_fk_jurusan;
+
+-- Enable kembali
+ALTER TABLE mahasiswa ENABLE CONSTRAINT mhs_fk_jurusan;
+```
+
+---
+
+#### **UNIQUE Constraint**
+```sql
+-- Inline
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    email VARCHAR2(50) UNIQUE
+);
+
+-- Table-level
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    email VARCHAR2(50),
+    no_telp VARCHAR2(15),
+    CONSTRAINT mhs_uk_email UNIQUE (email),
+    CONSTRAINT mhs_uk_telp UNIQUE (no_telp)
+);
+```
+
+**Perbedaan UNIQUE vs PRIMARY KEY:**
+| | PRIMARY KEY | UNIQUE |
+|---|-------------|---------|
+| NULL | ❌ Tidak boleh | ✅ Boleh (1x) |
+| Jumlah | 1 per tabel | Banyak per tabel |
+| Tujuan | Identifikasi baris | Hindari duplikasi |
+
+---
+
+#### **NOT NULL Constraint**
+```sql
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50) NOT NULL,  -- Wajib diisi
+    email VARCHAR2(50)           -- Boleh kosong
+);
+```
+
+---
+
+#### **CHECK Constraint**
+```sql
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50) NOT NULL,
+    ipk NUMBER(3,2),
+    semester NUMBER(2),
+    
+    -- Check constraints
+    CONSTRAINT mhs_ck_ipk CHECK (ipk BETWEEN 0 AND 4.0),
+    CONSTRAINT mhs_ck_semester CHECK (semester >= 1 AND semester <= 14)
+);
+
+-- Contoh lain
+CREATE TABLE produk (
+    id_produk CHAR(6) PRIMARY KEY,
+    nama_produk VARCHAR2(50),
+    harga NUMBER(10,2),
+    stok NUMBER(5),
+    
+    CONSTRAINT prd_ck_harga CHECK (harga > 0),
+    CONSTRAINT prd_ck_stok CHECK (stok >= 0)
+);
+```
+
+---
+
+#### **DEFAULT Constraint**
+```sql
+CREATE TABLE transaksi (
+    id_transaksi CHAR(8) PRIMARY KEY,
+    tanggal DATE DEFAULT SYSDATE,
+    status VARCHAR2(20) DEFAULT 'PENDING',
+    diskon NUMBER(5,2) DEFAULT 0
+);
+```
+
+---
+
+### Contoh Tabel dengan Semua Constraints
+
+```sql
+CREATE TABLE mahasiswa (
+    nim CHAR(10),
+    nama VARCHAR2(50) NOT NULL,
+    email VARCHAR2(50),
+    no_telp VARCHAR2(15),
+    kode_jurusan CHAR(3) NOT NULL,
+    id_dosen_wali CHAR(6),
+    ipk NUMBER(3,2) DEFAULT 0,
+    semester NUMBER(2) DEFAULT 1,
+    tanggal_daftar DATE DEFAULT SYSDATE,
+    status VARCHAR2(10) DEFAULT 'AKTIF',
+    
+    -- Primary Key
+    CONSTRAINT mhs_pk PRIMARY KEY (nim),
+    
+    -- Foreign Keys
+    CONSTRAINT mhs_fk_jurusan FOREIGN KEY (kode_jurusan)
+        REFERENCES jurusan(kode_jurusan) ON DELETE CASCADE,
+    CONSTRAINT mhs_fk_dosen FOREIGN KEY (id_dosen_wali)
+        REFERENCES dosen(id_dosen) ON DELETE SET NULL,
+    
+    -- Unique
+    CONSTRAINT mhs_uk_email UNIQUE (email),
+    CONSTRAINT mhs_uk_telp UNIQUE (no_telp),
+    
+    -- Check
+    CONSTRAINT mhs_ck_ipk CHECK (ipk BETWEEN 0 AND 4.0),
+    CONSTRAINT mhs_ck_semester CHECK (semester BETWEEN 1 AND 14),
+    CONSTRAINT mhs_ck_status CHECK (status IN ('AKTIF', 'CUTI', 'LULUS', 'DO'))
+);
+```
 
 #### **ALTER TABLE**
 ```sql
@@ -592,6 +1037,31 @@ ORDER BY m.ipk DESC;
 - **Relasi** = Belah ketupat
 - **Kardinalitas** = 1:1, 1:N, N:M
 
+### Kardinalitas & Foreign Key - Visual Guide
+
+```
+1:1 → FK di salah satu tabel + UNIQUE
+┌─────────┐         ┌──────────┐
+│ PEGAWAI │────1:1──│  LAPTOP  │
+│  (PK)   │         │  (PK,FK) │ ← FK + UNIQUE
+└─────────┘         └──────────┘
+
+1:N → FK di tabel "Many" (N)
+┌─────────┐         ┌───────────┐
+│ JURUSAN │────1:N──│ MAHASISWA │
+│  (PK)   │         │  (PK,FK)  │ ← FK tanpa UNIQUE
+└─────────┘         └───────────┘
+    1                    MANY
+
+N:M → Butuh tabel junction dengan 2 FK
+┌───────────┐         ┌─────────────┐         ┌──────────┐
+│ MAHASISWA │────N────│ PENDAFTARAN │────M────│ MATA_MK  │
+│   (PK)    │         │  (PK,FK,FK) │         │   (PK)   │
+└───────────┘         └─────────────┘         └──────────┘
+                       ↑ Junction Table
+                       berisi 2 FK
+```
+
 ### Query
 - **DDL**: CREATE, ALTER, DROP, TRUNCATE
 - **DML**: INSERT, UPDATE, DELETE, MERGE
@@ -616,14 +1086,69 @@ ORDER BY m.ipk DESC;
 
 ## 📚 LATIHAN SOAL
 
-### Soal 1: ERD
+### Soal 1: ERD & Kardinalitas
 Buatlah ERD untuk sistem perpustakaan dengan entitas:
 - Anggota (ID, Nama, Alamat, Telp)
 - Buku (ISBN, Judul, Pengarang, Tahun)
 - Peminjaman (tanggal_pinjam, tanggal_kembali)
-- Relasi: 1 Anggota bisa pinjam N Buku, 1 Buku bisa dipinjam N kali
 
-### Soal 2: Query Join
+**Relasi:** 
+- 1 Anggota bisa pinjam banyak Buku (1:N)
+- 1 Buku bisa dipinjam berkali-kali (N:M dengan Anggota)
+
+<details>
+<summary>Jawaban</summary>
+
+```
+[ANGGOTA] ────N:M──── [BUKU]
+    |                    |
+  PK: ID              PK: ISBN
+                        
+        [PEMINJAMAN] (Junction Table)
+              |
+          PK: ID_Pinjam
+          FK: ID_Anggota
+          FK: ISBN
+            tanggal_pinjam
+            tanggal_kembali
+```
+
+**Kardinalitas:** N:M → Butuh tabel junction (PEMINJAMAN)
+</details>
+
+---
+
+### Soal 2: Foreign Key Implementation
+Buat DDL untuk kasus berikut:
+- Tabel DOSEN (id_dosen PK, nama, nip UNIQUE)
+- Tabel MAHASISWA (nim PK, nama, id_dosen_wali FK)
+- Jika dosen dihapus, id_dosen_wali mahasiswa jadi NULL
+
+<details>
+<summary>Jawaban</summary>
+
+```sql
+CREATE TABLE dosen (
+    id_dosen CHAR(6) PRIMARY KEY,
+    nama VARCHAR2(50) NOT NULL,
+    nip CHAR(18),
+    CONSTRAINT dosen_uk_nip UNIQUE (nip)
+);
+
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    nama VARCHAR2(50) NOT NULL,
+    id_dosen_wali CHAR(6),
+    CONSTRAINT mhs_fk_dosen FOREIGN KEY (id_dosen_wali)
+        REFERENCES dosen(id_dosen)
+        ON DELETE SET NULL  -- ← Key answer
+);
+```
+</details>
+
+---
+
+### Soal 3: Query Join
 ```sql
 -- Tampilkan nama mahasiswa dan jumlah mata kuliah yang diambil
 -- hanya yang ambil > 5 mata kuliah
@@ -641,7 +1166,9 @@ HAVING COUNT(p.kode_mk) > 5;
 ```
 </details>
 
-### Soal 3: Subquery
+---
+
+### Soal 4: Subquery
 ```sql
 -- Tampilkan mahasiswa yang IPK-nya lebih tinggi 
 -- dari rata-rata IPK seluruh mahasiswa
@@ -655,6 +1182,80 @@ SELECT nim, nama, ipk
 FROM mahasiswa
 WHERE ipk > (SELECT AVG(ipk) FROM mahasiswa);
 ```
+</details>
+
+---
+
+### Soal 5: Kardinalitas Challenge
+Identifikasi kardinalitas untuk kasus berikut:
+
+1. **1 Pasien bisa konsultasi dengan banyak Dokter, 1 Dokter menangani banyak Pasien**
+   <details><summary>Jawaban</summary>N:M → Butuh tabel KONSULTASI</details>
+
+2. **1 Karyawan punya 1 Badge ID, 1 Badge hanya untuk 1 Karyawan**
+   <details><summary>Jawaban</summary>1:1 → FK + UNIQUE di salah satu tabel</details>
+
+3. **1 Kategori punya banyak Produk, 1 Produk hanya 1 Kategori**
+   <details><summary>Jawaban</summary>1:N → FK di tabel Produk</details>
+
+4. **1 Siswa bisa ikut banyak Ekskul, 1 Ekskul punya banyak Siswa**
+   <details><summary>Jawaban</summary>N:M → Butuh tabel PENDAFTARAN_EKSKUL</details>
+
+---
+
+### Soal 6: Complex Query
+Buat query untuk kasus:
+- Tampilkan nama jurusan dan jumlah mahasiswa per jurusan
+- Hanya jurusan dengan > 10 mahasiswa
+- Urutkan dari yang terbanyak
+
+<details>
+<summary>Jawaban</summary>
+
+```sql
+SELECT j.nama_jurusan, COUNT(m.nim) AS jumlah_mhs
+FROM jurusan j
+LEFT JOIN mahasiswa m ON j.kode_jurusan = m.kode_jurusan
+GROUP BY j.nama_jurusan
+HAVING COUNT(m.nim) > 10
+ORDER BY jumlah_mhs DESC;
+```
+</details>
+
+---
+
+### Soal 7: ON DELETE Action
+Apa yang terjadi pada data child jika parent dihapus?
+
+**Skenario:**
+```sql
+CREATE TABLE jurusan (
+    kode_jurusan CHAR(3) PRIMARY KEY,
+    nama_jurusan VARCHAR2(50)
+);
+
+CREATE TABLE mahasiswa (
+    nim CHAR(10) PRIMARY KEY,
+    kode_jurusan CHAR(3),
+    CONSTRAINT mhs_fk FOREIGN KEY (kode_jurusan)
+        REFERENCES jurusan(kode_jurusan)
+        ON DELETE CASCADE
+);
+```
+
+**Jika dijalankan:**
+```sql
+DELETE FROM jurusan WHERE kode_jurusan = 'IF';
+```
+
+<details>
+<summary>Jawaban</summary>
+
+Semua mahasiswa dengan `kode_jurusan = 'IF'` akan **terhapus** juga karena `ON DELETE CASCADE`.
+
+Jika ingin mahasiswa tidak terhapus, gunakan:
+- `ON DELETE SET NULL` → kode_jurusan jadi NULL
+- Atau tidak pakai ON DELETE → Error, tidak bisa hapus jurusan
 </details>
 
 ---
